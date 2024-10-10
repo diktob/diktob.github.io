@@ -1,63 +1,59 @@
 // getting places from APIs
 function loadPlaces(position) {
     const params = {
-        radius: 300,    // search places not farther than this value (in meters)
-        clientId: 'WPHH3K4AGK4QGAA1OO1QYTKLBP3KA3OROQGEWDSJG3QTF4ZK',
-        clientSecret: 'TUMOQNKJ5CWZA0TG2M1AW4XX5XO4ESARZ0GHZRRRGDYMJZPQ',
-        version: '20300101',    // foursquare versioning, required but unuseful for this demo
+        radius: 300, // search places not farther than this value (in meters)
+        limit: 30, // number of maximum places to fetch
     };
 
-    // CORS Proxy to avoid CORS problems
-    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+    // Your Foursquare API Key
+    const foursquareApiKey = 'fsq3CnlVFCvVjRoymILUUWxDNGSn/06E5DGB5GhlNxo5krA='; // Ganti dengan API Key Foursquare v3 kamu
 
-    // Foursquare API (limit param: number of maximum places to fetch)
-    const endpoint = `${corsProxy}https://api.foursquare.com/v2/venues/search?intent=checkin
-        &ll=${position.latitude},${position.longitude}
-        &radius=${params.radius}
-        &client_id=${params.clientId}
-        &client_secret=${params.clientSecret}
-        &limit=30 
-        &v=${params.version}`;
-    return fetch(endpoint)
-        .then((res) => {
-            return res.json()
-                .then((resp) => {
-                    return resp.response.venues;
-                })
-        })
-        .catch((err) => {
-            console.error('Error with places API', err);
-        })
-};
+    // Endpoint Foursquare API v3
+    const endpoint = `https://api.foursquare.com/v3/places/search?ll=${position.latitude},${position.longitude}&radius=${params.radius}&limit=${params.limit}`;
 
+    // Fetch data from the Foursquare API v3
+    return fetch(endpoint, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'Authorization': foursquareApiKey
+        }
+    })
+    .then((res) => res.json())
+    .then((resp) => {
+        return resp.results; // Sesuaikan dengan struktur respons terbaru API v3
+    })
+    .catch((err) => {
+        console.error('Error with places API', err);
+    });
+}
 
 window.onload = () => {
     const scene = document.querySelector('a-scene');
 
-    // first get current user location
-    return navigator.geolocation.getCurrentPosition(function (position) {
+    // Get current user location
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            loadPlaces(position.coords)
+                .then((places) => {
+                    places.forEach((place) => {
+                        const latitude = place.geocodes.main.latitude;
+                        const longitude = place.geocodes.main.longitude;
 
-        // than use it to load from remote APIs some places nearby
-        loadPlaces(position.coords)
-            .then((places) => {
-                places.forEach((place) => {
-                    const latitude = place.location.lat;
-                    const longitude = place.location.lng;
+                        // Create a link for each place
+                        const placeText = document.createElement('a-link');
+                        placeText.setAttribute('gps-entity-place', `latitude: ${latitude}; longitude: ${longitude};`);
+                        placeText.setAttribute('title', place.name);
+                        placeText.setAttribute('scale', '15 15 15');
+                        
+                        placeText.addEventListener('loaded', () => {
+                            window.dispatchEvent(new CustomEvent('gps-entity-place-loaded'))
+                        });
 
-                    // add place name
-                    const placeText = document.createElement('a-link');
-                    placeText.setAttribute('gps-entity-place', `latitude: ${latitude}; longitude: ${longitude};`);
-                    placeText.setAttribute('title', place.name);
-                    placeText.setAttribute('scale', '15 15 15');
-                    
-                    placeText.addEventListener('loaded', () => {
-                        window.dispatchEvent(new CustomEvent('gps-entity-place-loaded'))
+                        scene.appendChild(placeText);
                     });
-
-                    scene.appendChild(placeText);
                 });
-            })
-    },
+        },
         (err) => console.error('Error in retrieving position', err),
         {
             enableHighAccuracy: true,
